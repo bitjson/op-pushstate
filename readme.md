@@ -127,4 +127,4 @@ TODO: discuss implementation performance considerations
 
 # Contributing
 
-Feedback and improvements to this draft specification are welcome. Please [open an issue](https://github.com/bitjson/op-pushstate/issues) or join the [OP_PUSHSTATE working group on Telegram]().
+Feedback and improvements to this draft specification are welcome. Please [open an issue](https://github.com/bitjson/op-pushstate/issues) or join the [OP_PUSHSTATE working group on Telegram](https://t.me/pushstate).
