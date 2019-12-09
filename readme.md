@@ -84,7 +84,7 @@ Backwards compatibility is also more challenging – any future changes to the s
 
 ## Ordering of Identifiers
 
-State items have been mapped to identifying numbers/hex values in the order in which they appear in the Bitcoin Cash signing serialization algorithm (with preimages listed before their hashes). While items could also be ordered alphabetically by their names, this would ossify naming choices, and any future extensions would break the alphabetical ordering.
+State items have been mapped to identifying numbers/hex values in the order in which they appear in the [Bitcoin Cash signing serialization algorithm](https://github.com/bitcoincashorg/bitcoincash.org/blob/master/spec/replay-protected-sighash.md) (with preimages listed before their hashes). While items could also be ordered alphabetically by their names, this would ossify naming choices, and any future extensions would break the alphabetical ordering.
 
 ## Inclusion of Identifiers for Hashed Values
 
