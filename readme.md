@@ -1,6 +1,6 @@
 # OP_PUSHSTATE Draft Specification
 
-OP_PUSHSTATE is a new opcode for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. `State Item Identifiers` are used to select particular state elements according to the [State Item Identifiers](#state-item-identifiers) table. On evaluation, the value of the requested element is pushed to the stack.
+OP_PUSHSTATE is a new opcode for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. A `template` describes the list and order of state elements according to the [State Item Identifiers](#state-item-identifiers) table. On evaluation, the value of the requested elements are concatenated and pushed to the stack.
 
 ## Deployment
 
@@ -14,16 +14,26 @@ OP_PUSHSTATE allows scripts to request state information directly from the virtu
 
 ## Opcode Description
 ```
-Pop the top item from the stack as a state identifier. If the identifier is recognized, push the identified state value to the stack, otherwise, error.
+Pop the top item from the stack as a state concatenation template. If each byte of the template is recognized, push the identified state value to the stack, otherwise, error.
 ```
 
 ## Codepoint
 
 The next undefined codepoint (`0xbc`/`188`) is defined as `OP_PUSHSTATE`.
 
+## Algorithm
+
+When the virtual machine encounters an `OP_PUSHSTATE`, the top item is popped from the stack as the `template`.
+
+Each byte in the `template` is confirmed to be defined in the [State Item Identifiers](#state-item-identifiers) table. If not, error.
+
+The value of each identified state item is concatenated together in the order specified by the `template`. If the length of this concatenation exceeds the maximum push length (currently 520 bytes), error.
+
+The concatenated result is pushed to the stack.
+
 ## State Item Identifiers
 
-OP_PUSHSTATE reads the top element on the stack as a **state item identifier**. Identifiers are mapped to specific state information as follows:
+OP_PUSHSTATE `template` bytes are mapped to specific state information as follows:
 
 | Name                              | Number | Hex    | Description                                                                                                                        |
 | --------------------------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -72,19 +82,27 @@ This strategy would expend a much larger number of opcodes than the single-opcod
 
 Backwards compatibility is also more challenging – any future changes to the signing serialization algorithm would likely require new opcodes or additional bytes.
 
-## Inclusion of State Identifiers for Hashed Values
+## Ordering of Identifiers
 
-As specified, several state identifiers represent the hash of other state items (`Transaction Outpoints Hash`, `Transaction Sequence Numbers Hash`, `Corresponding Output Hash`, and `Transaction Outputs Hash`). This allows scripts to avoid manually re-hashing the values (e.g. `<2> OP_PUSHSTATE OP_HASH256`). This optimization reduces transaction sizes by eliminating the hashing opcode, incentivizes better performance, and makes performance optimizations easier for implementations.
+State items have been mapped to identifying numbers/hex values in the order in which they appear in the Bitcoin Cash signing serialization algorithm (with preimages listed before their hashes). While items could also be ordered alphabetically by their names, this would ossify naming choices, and any future extensions would break the alphabetical ordering.
+
+## Inclusion of Identifiers for Hashed Values
+
+Several state identifiers represent the hash of other state items (`Transaction Outpoints Hash`, `Transaction Sequence Numbers Hash`, `Corresponding Output Hash`, and `Transaction Outputs Hash`). This allows scripts to avoid manually re-hashing the values (e.g. `<2> OP_PUSHSTATE OP_HASH256`). This optimization reduces transaction sizes by eliminating the hashing opcode, incentivizes better performance, and makes performance optimizations easier for implementations.
 
 In most cases, the virtual machine will be required to perform these hash functions during a signature checking operation (with a few exceptions, e.g. `Corresponding Output Hash` in an input which doesn't utilize "SIGHASH_SINGLE"). By allowing scripts to request the hashed result directly, scripts are incentivized to avoid harder-to-optimize constructions (e.g. `<2> OP_PUSHSTATE OP_SHA256 OP_SHA256`).
 
 Additionally, most "covenant"-style scripts will require each hashed state value (to construct the full signing serialization when validating a signature), while fewer preimage values are needed for validating conformance to the covenant. This implies that state identifiers representing hashes will be more common than those representing their preimages.
+
+## Inclusion of Covered Bytecode Length
+
+The length of the covered bytecode could be directly included in the `Covered Bytecode` as a prefix (and extracted with `OP_SPLIT` if needed), or it could be derived by scripts using `OP_SIZE` and some simple math (to convert from a Script Number to a Bitcoin `VarInt`). Both of these options significantly increase the complexity of scripts and require branching to handle multiple `VarInt` sizes. Providing direct access to the properly-encoded length value dramatically simplifies these operations, saving network bandwidth and eliminating several security "footguns".
+
+Because the number pushing opcodes (`OP_1`-`OP_16`) allow for a single-byte push of numbers up to 16, `Covered Bytecode Length` can be included in the initial set without losing optimization (requiring multi-byte pushes for identifiers of single state items).
  
-## Multiple State Identifiers Per Operation
+## Inclusion of Concatenation Functionality
 
-As currently specified, `OP_PUSHSTATE` will often be used in series with resulting state values being concatenated. It would be valuable to develop a syntax for specifying a list of state items to concatenate and push in a single operation.
-
-For example, as specified, OP_PUSHSTATE-optimized CashChannels will include the following script segment:
+`OP_PUSHSTATE` must often be used in series with resulting state values being concatenated. For example, without multi-value templating, OP_PUSHSTATE-optimized CashChannels would require the following script segment:
 ```
 <1> OP_PUSHSTATE // version
 <3> OP_PUSHSTATE // transaction outpoints hash
@@ -95,19 +113,17 @@ For example, as specified, OP_PUSHSTATE-optimized CashChannels will include the 
 OP_CAT OP_CAT OP_CAT OP_CAT OP_CAT
 ```
 
-One possible strategy is to allow multiple state identifiers to be concatenated into a single stack item. The `OP_PUSHSTATE` operator would pop the top value from the stack, and interpret it as an array of bytes representing the list and order of state items to concatenate and push to the stack. (Pushes larger than the current limit – 520 bytes – produce an error.) 
-
-This would reduce the above script segment to:
+By including the templating and concatenation functionality in `OP_PUSHSTATE`, this script segment is reduced to:
 
 ```
 <0x010305060708> OP_PUSHSTATE
 ```
 
-This change would limit the count of state identifiers to `255`, though the byte `0xff` can be reserved to indicate longer identifiers (as in UTF-8).
+While this limits the count of state identifiers to `255`, the byte `0xff` can be reserved to indicate longer identifiers (as in UTF-8).
 
 ## Lazy Hashing & Performance Optimizations
 
-TODO: discuss effects on signature/hash caching, other performance considerations
+TODO: discuss implementation performance considerations
 
 # Contributing
 
