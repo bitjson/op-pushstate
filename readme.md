@@ -1,6 +1,8 @@
-# OP_PUSHSTATE Draft Specification
+# OP_TX* Draft Specification
 
-OP_PUSHSTATE is a new opcode for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. A `template` describes the list and order of state elements according to the [State Item Identifiers](#state-item-identifiers) table. On evaluation, the value of the requested elements are concatenated and pushed to the stack.
+OP_TX* is a set of new opcodes for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. Each opcode puts a specific state element onto the stack (see [State item opcodes](#state-item-opcodes) for a full list).
+
+This set of opcodes serves as replacement for the previously proposed OP_PUSHSTATE.
 
 ## Deployment
 
@@ -10,52 +12,41 @@ Deployment of this proposal is recommended for the November 2020 upgrade (`BCH_2
 
 When designing covenant-style transactions, elements of a transaction’s signing serialization (A.K.A. `sighash` preimage) often must be pushed to the stack in unlocking scripts so they can be validated by the locking script. Because the virtual machine must already maintain this state information over the course of an evaluation, these pushes do not provide any performance or optimization value but force all covenant transactions to duplicate state information (needlessly inflating transaction sizes).
 
-OP_PUSHSTATE allows scripts to request state information directly from the virtual machine during evaluation, reducing wasted transaction space.
+The OP_TX* opcodes allow scripts to request state information directly from the virtual machine during evaluation, reducing wasted transaction space.
 
 ## Opcode Description
 ```
-Pop the top item from the stack as a state concatenation template. If each byte of the template is recognized, push the identified state value to the stack, otherwise, error.
+1) If the opcode requires indices, pop the required indices from the stack. If any index is not a minimally encoded number, error.
+2) Push state value associated with the respective opcode to the stack. Error if the state value exceeds the maximum stack item limit or if the maximum stack size has been reached.
 ```
 
 ## Codepoint
 
-The next undefined codepoint (`0xbc`/`188`) is defined as `OP_PUSHSTATE`.
+For each of the OP_TX* opcodes, a multi-byte opcode will be used, prefixed by 0x65 and followed by one additional byte, which determines the state item to be pushed (see [State item opcodes](#state-item-opcodes)). This opcode replaces the currently disabled OP_VERIF, which at the time of writing makes scripts totally unspendable, even when within an unexecuted OP_IF branch.
 
-## Algorithm
+## State Item Opcodes
 
-When the virtual machine encounters an `OP_PUSHSTATE`, the top item is popped from the stack as the `template`.
+The following opcodes will be added:
 
-Each byte in the `template` is confirmed to be defined in the [State Item Identifiers](#state-item-identifiers) table. If not, error.
+| Name                      | Hex     | Inputs             | Pushed data                                                                                                                        |
+| ------------------------- | ------- | ------------------ | ---------------------------------------------------------------------------------------------------------------------------------- |
+| OP_TXVERSION              | `65 01` |                    | Transaction version number as minimally encoded integer.                                                                           |
+| OP_TXOUTPOINT             | `65 02` | `nInput`           | Signing serialization of the outpoint at the `nInput`-th input.                                                                    |
+| OP_TXHASHOUTPOINTS        | `65 03` |                    | Double-sha256 hash (`OP_HASH256`) of the signing serialization of all transaction outpoints.                                       |
+| OP_TXSEQUENCENUMBER       | `65 04` | `nInput`           | Sequence number as minimally encoded integer of the `nInput`-th input.                                                             |
+| OP_TXHASHSEQUENCENUMBERS  | `65 05` |                    | Double-sha256 hash (`OP_HASH256`) of the signing serialization of all transaction sequence numbers.                                |
+| OP_TXINPUTDATA            | `65 06` | `nInput` `nPushop` | Value pushed by the `nItem`-th pushop of the `nInput`-th input.                                                                    |
+| OP_TXOWNOUTPOINT          | `65 07` |                    | Outpoint being spent by the current input.                                                                                         |
+| OP_TXOWNOUTPOINTINDEX     | `65 08` |                    | Index of the outpoint being spent by the current input as minimally encoded integer.                                               |
+| OP_TXOWNSCRIPTCODE        | `65 09` |                    | Bytecode segment covered by the signature (A.K.A. `scriptCode`)                                                                    |
+| OP_TXOWNVALUE             | `65 0a` |                    | Output value of the outpoint being spent by the current input as minimally encoded integer.                                        |
+| OP_TXOWNSEQUENCENO        | `65 0b` |                    | Sequence number of the outpoint being spent by the current input as minimally encoded integer.                                     |
+| OP_TXOUTPUTVALUE          | `65 0c` | `nOutput`          | Value of the `nOutput`-th output as minimally encoded integer.                                                                     |
+| OP_TXOUTPUTSCRIPT         | `65 0d` | `nOutput`          | Script of the `nOutput`-th output.                                                                                                 |
+| OP_TXHASHOUTPUTS          | `65 0e` |                    | Double-sha256 hash (`OP_HASH256`) of the signing serialization of all transaction outputs.                                         |
+| OP_TXLOCKTIME             | `65 0f` |                    | Transaction locktime as minimally encoded integer. If locktime > 2³¹, error.                                                       |
 
-The value of each identified state item is concatenated together in the order specified by the `template`. If the length of this concatenation exceeds the maximum push length (currently 520 bytes), error.
-
-The concatenated result is pushed to the stack.
-
-## State Item Identifiers
-
-OP_PUSHSTATE `template` bytes are mapped to specific state information as follows:
-
-| Name                              | Number | Hex    | Description                                                                                                                        |
-| --------------------------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Version                           | `1`    | `0x01` | The transaction's version number.                                                                                                  |
-| Transaction Outpoints             | `2`    | `0x02` | The signing serialization of all transaction outpoints.                                                                            |
-| Transaction Outpoints Hash        | `3`    | `0x03` | The double-sha256 hash (`OP_HASH256`) of `Transaction Outpoints`.                                                                  |
-| Transaction Sequence Numbers      | `4`    | `0x04` | The signing serialization of all transaction sequence numbers.                                                                     |
-| Transaction Sequence Numbers Hash | `5`    | `0x05` | The double-sha256 hash (`OP_HASH256`) of `Transaction Sequence Numbers`.                                                           |
-| Outpoint Transaction Hash         | `6`    | `0x06` | The transaction hash/ID of the outpoint being spent by the current input.                                                          |
-| Outpoint Index                    | `7`    | `0x07` | The index of the outpoint being spent by the current input.                                                                        |
-| Covered Bytecode Length           | `8`    | `0x08` | The length of the covered bytecode encoded as a Bitcoin VarInt.                                                                    |
-| Covered Bytecode                  | `9`    | `0x09` | The bytecode segment covered by the signature (A.K.A. `scriptCode`)                                                                |
-| Output Value                      | `10`   | `0x0a` | The output value of the outpoint being spent by the current input.                                                                 |
-| Sequence Number                   | `11`   | `0x0b` | The sequence number of the outpoint being spent by the current input.                                                              |
-| Corresponding Output              | `12`   | `0x0c` | The signing serialization of the transaction output with the same index as the current input. If none, an empty stack item (`0x`). |
-| Corresponding Output Hash         | `13`   | `0x0d` | The double-sha256 hash (`OP_HASH256`) of `Corresponding Output`.                                                                   |
-| Transaction Outputs               | `14`   | `0x0e` | The signing serialization of all transaction outputs.                                                                              |
-| Transaction Outputs Hash          | `15`   | `0x0f` | The double-sha256 hash (`OP_HASH256`) of `Transaction Outputs`.                                                                    |
-| Locktime                          | `16`   | `0x10` | The transaction's locktime.                                                                                                        |
-
-
-Note, all state item identifiers can be interpreted as valid Script Numbers. This ensures maximum future protocol compatibility and implementation flexibility. Identifiers begin at `1` to reserve both empty stack items (`0x`) and zero values (`0x00`/`0x80`) for use in future extensions.
+# TODO: adapt following sections to multi-byte opcode
 
 ## Implementations
 
