@@ -1,6 +1,6 @@
 # OP_PUSHSTATE Draft Specification
 
-OP_PUSHSTATE is a new opcode for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. A `template` describes the list and order of state elements according to the [State Item Identifiers](#state-item-identifiers) table. On evaluation, the value of the requested elements are concatenated and pushed to the stack.
+OP_PUSHSTATE is a new opcode for the BCH virtual machine which provides direct access to elements of the virtual machine’s state during evaluation. A `template` represents the state elements bitfield according to the [State Item Identifiers](#state-item-identifiers) table. On evaluation, the value of the requested elements are concatenated and pushed to the stack.
 
 ## Deployment
 
@@ -14,7 +14,7 @@ OP_PUSHSTATE allows scripts to request state information directly from the virtu
 
 ## Opcode Description
 ```
-Pop the top item from the stack as a state concatenation template. If each byte of the template is recognized, push the identified state value to the stack, otherwise, error.
+Pop the top item from the stack as a state concatenation template. If each bit of the template is recognized, push the identified state value to the stack, otherwise, error.
 ```
 
 ## Codepoint
@@ -25,7 +25,7 @@ The next undefined codepoint (`0xbc`/`188`) is defined as `OP_PUSHSTATE`.
 
 When the virtual machine encounters an `OP_PUSHSTATE`, the top item is popped from the stack as the `template`.
 
-Each byte in the `template` is confirmed to be defined in the [State Item Identifiers](#state-item-identifiers) table. If not, error.
+The `template` is confirmed to be a minimally encoded 1 or 2 bytes long array. If not, error.
 
 The value of each identified state item is concatenated together in the order specified by the `template`. If the length of this concatenation exceeds the maximum push length (currently 520 bytes), error.
 
@@ -33,29 +33,38 @@ The concatenated result is pushed to the stack.
 
 ## State Item Identifiers
 
-OP_PUSHSTATE `template` bytes are mapped to specific state information as follows:
+OP_PUSHSTATE `template` bits are mapped to specific state information as follows:
 
-| Name                              | Number | Hex    | Description                                                                                                                        |
-| --------------------------------- | ------ | ------ | ---------------------------------------------------------------------------------------------------------------------------------- |
-| Version                           | `1`    | `0x01` | The transaction's version number.                                                                                                  |
-| Transaction Outpoints             | `2`    | `0x02` | The signing serialization of all transaction outpoints.                                                                            |
-| Transaction Outpoints Hash        | `3`    | `0x03` | The double-sha256 hash (`OP_HASH256`) of `Transaction Outpoints`.                                                                  |
-| Transaction Sequence Numbers      | `4`    | `0x04` | The signing serialization of all transaction sequence numbers.                                                                     |
-| Transaction Sequence Numbers Hash | `5`    | `0x05` | The double-sha256 hash (`OP_HASH256`) of `Transaction Sequence Numbers`.                                                           |
-| Outpoint Transaction Hash         | `6`    | `0x06` | The transaction hash/ID of the outpoint being spent by the current input.                                                          |
-| Outpoint Index                    | `7`    | `0x07` | The index of the outpoint being spent by the current input.                                                                        |
-| Covered Bytecode Length           | `8`    | `0x08` | The length of the covered bytecode encoded as a Bitcoin VarInt.                                                                    |
-| Covered Bytecode                  | `9`    | `0x09` | The bytecode segment covered by the signature (A.K.A. `scriptCode`)                                                                |
-| Output Value                      | `10`   | `0x0a` | The output value of the outpoint being spent by the current input.                                                                 |
-| Sequence Number                   | `11`   | `0x0b` | The sequence number of the outpoint being spent by the current input.                                                              |
-| Corresponding Output              | `12`   | `0x0c` | The signing serialization of the transaction output with the same index as the current input. If none, an empty stack item (`0x`). |
-| Corresponding Output Hash         | `13`   | `0x0d` | The double-sha256 hash (`OP_HASH256`) of `Corresponding Output`.                                                                   |
-| Transaction Outputs               | `14`   | `0x0e` | The signing serialization of all transaction outputs.                                                                              |
-| Transaction Outputs Hash          | `15`   | `0x0f` | The double-sha256 hash (`OP_HASH256`) of `Transaction Outputs`.                                                                    |
-| Locktime                          | `16`   | `0x10` | The transaction's locktime.                                                                                                        |
+| Name                              | Bit    | Hex (BE) | Hex (LE) | Description                                                                                                                        |
+| --------------------------------- | ------ | -------- | ---------------------------------------------------------------------------------------------------------------------------------- |
+| Version                           | `1`    | `0x01`   | `0x01`   | The transaction's version number.                                                                                                  |
+| Transaction Outpoints             | `2`    | `0x02`   | `0x02`   | The signing serialization of all transaction outpoints.                                                                            |
+| Transaction Outpoints Hash        | `3`    | `0x04`   | `0x04`   | The double-sha256 hash (`OP_HASH256`) of `Transaction Outpoints`.                                                                  |
+| Transaction Sequence Numbers      | `4`    | `0x08`   | `0x08`   | The signing serialization of all transaction sequence numbers.                                                                     |
+| Transaction Sequence Numbers Hash | `5`    | `0x10`   | `0x10`   | The double-sha256 hash (`OP_HASH256`) of `Transaction Sequence Numbers`.                                                           |
+| Outpoint Transaction Hash         | `6`    | `0x20`   | `0x20`   | The transaction hash/ID of the outpoint being spent by the current input.                                                          |
+| Outpoint Index                    | `7`    | `0x40`   | `0x40`   | The index of the outpoint being spent by the current input.                                                                        |
+| Covered Bytecode Length           | `8`    | `0x80`   | `0x80`   | The length of the covered bytecode encoded as a Bitcoin VarInt.                                                                    |
+| Covered Bytecode                  | `9`    | `0x0100` | `0x0001` | The bytecode segment covered by the signature (A.K.A. `scriptCode`)                                                                |
+| Output Value                      | `10`   | `0x0200` | `0x0002` | The output value of the outpoint being spent by the current input.                                                                 |
+| Sequence Number                   | `11`   | `0x0400` | `0x0004` | The sequence number of the outpoint being spent by the current input.                                                              |
+| Corresponding Output              | `12`   | `0x0800` | `0x0008` | The signing serialization of the transaction output with the same index as the current input. If none, an empty stack item (`0x`). |
+| Corresponding Output Hash         | `13`   | `0x1000` | `0x0010` | The double-sha256 hash (`OP_HASH256`) of `Corresponding Output`.                                                                   |
+| Transaction Outputs               | `14`   | `0x2000` | `0x0020` | The signing serialization of all transaction outputs.                                                                              |
+| Transaction Outputs Hash          | `15`   | `0x4000` | `0x0040` | The double-sha256 hash (`OP_HASH256`) of `Transaction Outputs`.                                                                    |
+| Locktime                          | `16`   | `0x8000` | `0x0080` | The transaction's locktime.                                                                                                        |
+## Calculating and pushing template
 
+The `template` is a sum (binary `OR`) of state element bit values. At least one bit must be set.
 
-Note, all state item identifiers can be interpreted as valid Script Numbers. This ensures maximum future protocol compatibility and implementation flexibility. Identifiers begin at `1` to reserve both empty stack items (`0x`) and zero values (`0x00`/`0x80`) for use in future extensions.
+Once the `template` parameter is determined, it needs to be encoded to bytes, and then minimally pushed the same way as `checkbits` in `OP_CHECKMULTISIG`. While the encoding to bytes is straight forward, it is worth emphasizing that certain length-1 byte vectors must be pushed using special opcodes.
+
+* For `template <= 8`, a length-1 byte array is to be pushed.
+  * The byte arrays `{0x01}` through `{0x10}` must be pushed using OP_1 through OP_16, respectively.
+  * The byte array `{0x81}` must be pushed using OP_1NEGATE.
+  * Other cases will be pushed using no special opcode, i.e., using `0x01 <template>`.
+* For `9 <= template <= 16`, a length-2 byte array in Little-Endian order is to be pushed.
+  * The push will always be `0x02 LL HH`, where `LL` is the least significant byte of `template`, and `HH` is the remaining high bits.
 
 ## Implementations
 
@@ -88,38 +97,34 @@ State items have been mapped to identifying numbers/hex values in the order in w
 
 ## Inclusion of Identifiers for Hashed Values
 
-Several state identifiers represent the hash of other state items (`Transaction Outpoints Hash`, `Transaction Sequence Numbers Hash`, `Corresponding Output Hash`, and `Transaction Outputs Hash`). This allows scripts to avoid manually re-hashing the values (e.g. `<2> OP_PUSHSTATE OP_HASH256`). This optimization reduces transaction sizes by eliminating the hashing opcode, incentivizes better performance, and makes performance optimizations easier for implementations.
+Several state identifiers represent the hash of other state items (`Transaction Outpoints Hash`, `Transaction Sequence Numbers Hash`, `Corresponding Output Hash`, and `Transaction Outputs Hash`). This allows scripts to avoid manually re-hashing the values (e.g. `OP_2 OP_PUSHSTATE OP_HASH256`). This optimization reduces transaction sizes by eliminating the hashing opcode, incentivizes better performance, and makes performance optimizations easier for implementations.
 
-In most cases, the virtual machine will be required to perform these hash functions during a signature checking operation (with a few exceptions, e.g. `Corresponding Output Hash` in an input which doesn't utilize "SIGHASH_SINGLE"). By allowing scripts to request the hashed result directly, scripts are incentivized to avoid harder-to-optimize constructions (e.g. `<2> OP_PUSHSTATE OP_SHA256 OP_SHA256`).
+In most cases, the virtual machine will be required to perform these hash functions during a signature checking operation (with a few exceptions, e.g. `Corresponding Output Hash` in an input which doesn't utilize "SIGHASH_SINGLE"). By allowing scripts to request the hashed result directly, scripts are incentivized to avoid harder-to-optimize constructions (e.g. `OP_2 OP_PUSHSTATE OP_SHA256 OP_SHA256`).
 
 Additionally, most "covenant"-style scripts will require each hashed state value (to construct the full signing serialization when validating a signature), while fewer preimage values are needed for validating conformance to the covenant. This implies that state identifiers representing hashes will be more common than those representing their preimages.
 
 ## Inclusion of Covered Bytecode Length
 
 The length of the covered bytecode could be directly included in the `Covered Bytecode` as a prefix (and extracted with `OP_SPLIT` if needed), or it could be derived by scripts using `OP_SIZE` and some simple math (to convert from a Script Number to a Bitcoin `VarInt`). Both of these options significantly increase the complexity of scripts and require branching to handle multiple `VarInt` sizes. Providing direct access to the properly-encoded length value dramatically simplifies these operations, saving network bandwidth and eliminating several security "footguns".
-
-Because the number pushing opcodes (`OP_1`-`OP_16`) allow for a single-byte push of numbers up to 16, `Covered Bytecode Length` can be included in the initial set without losing optimization (requiring multi-byte pushes for identifiers of single state items).
  
 ## Inclusion of Concatenation Functionality
 
 `OP_PUSHSTATE` must often be used in series with resulting state values being concatenated. For example, without multi-value templating, OP_PUSHSTATE-optimized CashChannels would require the following script segment:
 ```
-<1> OP_PUSHSTATE // version
-<3> OP_PUSHSTATE // transaction outpoints hash
-<5> OP_PUSHSTATE // transaction sequence numbers hash
-<6> OP_PUSHSTATE // outpoint transaction hash
-<7> OP_PUSHSTATE // outpoint index
-<8> OP_PUSHSTATE // covered bytecode length
+OP_1 OP_PUSHSTATE // version
+OP_4 OP_PUSHSTATE // transaction outpoints hash
+OP_16 OP_PUSHSTATE // transaction sequence numbers hash
+0x01 0x20 OP_PUSHSTATE // outpoint transaction hash
+0x01 0x40 OP_PUSHSTATE // outpoint index
+0x01 0x80 OP_PUSHSTATE // covered bytecode length
 OP_CAT OP_CAT OP_CAT OP_CAT OP_CAT
 ```
 
 By including the templating and concatenation functionality in `OP_PUSHSTATE`, this script segment is reduced to:
 
 ```
-<0x010305060708> OP_PUSHSTATE
+0x01 0xF5 OP_PUSHSTATE
 ```
-
-While this limits the count of state identifiers to `255`, the byte `0xff` can be reserved to indicate longer identifiers (as in UTF-8).
 
 ## Lazy Hashing & Performance Optimizations
 
